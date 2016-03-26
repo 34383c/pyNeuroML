@@ -26,7 +26,10 @@ import lems.model.model as lems_model
 import random
 import inspect
 
-DEFAULTS = {'v':False, 'default_java_max_memory':'400M'}
+DEFAULTS = {
+    'verbose'         : False,
+    'java_max_memory' : '400M'
+}
 
 
 def parse_arguments():
@@ -51,13 +54,12 @@ def parse_arguments():
     shared_options.add_argument(
             '-verbose',
             action='store_true',
-            default=DEFAULTS['v'],
             help='Verbose output'
             )
     shared_options.add_argument(
             '-java_max_memory',
             metavar='MAX',
-            default=DEFAULTS['default_java_max_memory'],
+            default=DEFAULTS['java_max_memory'],
             help=('Java memory for jNeuroML, e.g. 400M, 2G (used in\n'
                   '-Xmx argument to java)')
             )
@@ -339,16 +341,22 @@ def relative_path(base_dir, file_name):
     return os.path.join(base_dir,file_name)
 
 
-def run_lems_with_jneuroml(lems_file_name, 
-                           max_memory=DEFAULTS['default_java_max_memory'], 
-                           nogui=False, 
-                           load_saved_data=False, 
-                           plot=False, 
-                           show_plot_already=True, 
-                           exec_in_dir = ".",
-                           verbose=DEFAULTS['v'],
-                           exit_on_fail = True):  
-                               
+def run_lems_with_jneuroml(lems_file_name,
+                           max_memory=None,
+                           nogui=False,
+                           load_saved_data=False,
+                           plot=False,
+                           show_plot_already=True,
+                           exec_in_dir=".",
+                           verbose=None,
+                           exit_on_fail=True):
+
+    if max_memory is None:
+        max_memory = DEFAULTS['java_max_memory']
+
+    if verbose is None:
+        verbose = DEFAULTS['verbose']
+
     print_comment("Loading LEMS file: %s and running with jNeuroML" \
                   % lems_file_name, verbose)
     post_args = ""
@@ -376,35 +384,46 @@ def run_lems_with_jneuroml(lems_file_name,
     
     
 
-def nml2_to_svg(nml2_file_name, max_memory=DEFAULTS['default_java_max_memory'], 
-                verbose=True):           
+def nml2_to_svg(nml2_file_name,
+                max_memory=None,
+                verbose=True):
+
+    if max_memory is None:
+        max_memory = DEFAULTS['java_max_memory']
+
     print_comment("Converting NeuroML2 file: %s to SVG"%nml2_file_name, verbose)
-    
+
     post_args = "-svg"
-    
-    run_jneuroml("", 
-                 nml2_file_name, 
-                 post_args, 
-                 max_memory = max_memory, 
+
+    run_jneuroml("",
+                 nml2_file_name,
+                 post_args,
+                 max_memory = max_memory,
                  verbose = verbose)
 
 
 def run_lems_with_jneuroml_neuron(lems_file_name, 
-                                  max_memory=DEFAULTS['default_java_max_memory'], 
+                                  max_memory=None, 
                                   nogui=False, 
                                   load_saved_data=False, 
                                   plot=False, 
                                   show_plot_already=True, 
                                   exec_in_dir = ".",
-                                  verbose=DEFAULTS['v'],
+                                  verbose=None,
                                   exit_on_fail = True):
-                                      
+
+    if max_memory is None:
+        max_memory = DEFAULTS['java_max_memory']
+
+    if verbose is None:
+        verbose = DEFAULTS['verbose']
+
     print_comment("Loading LEMS file: %s and running with jNeuroML_NEURON" \
                   % lems_file_name, verbose)
     post_args = " -neuron -run"
     gui = " -nogui" if nogui else ""
     post_args += gui
-    
+
     success = run_jneuroml("", 
                            lems_file_name, 
                            post_args, 
@@ -412,10 +431,10 @@ def run_lems_with_jneuroml_neuron(lems_file_name,
                            exec_in_dir = exec_in_dir, 
                            verbose = verbose, 
                            exit_on_fail = exit_on_fail)
-    
-    if not success: 
+
+    if not success:
         return False
-    
+
     if load_saved_data:
         return reload_saved_data(relative_path(exec_in_dir,lems_file_name), 
                                  plot=plot, 
@@ -429,18 +448,21 @@ def reload_saved_data(lems_file_name,
                       plot=False, 
                       show_plot_already=True, 
                       simulator=None, 
-                      verbose=DEFAULTS['v']): 
-    
+                      verbose=None):
+
+    if verbose is None:
+        verbose = DEFAULTS['verbose']
+
     # Could use pylems to parse this...
     results = {}
-    
+
     if plot:
         import matplotlib.pyplot as plt
 
     base_dir = os.path.dirname(lems_file_name) \
                if len(os.path.dirname(lems_file_name))>0 \
                else '.'
-    
+
     from lxml import etree
     tree = etree.parse(lems_file_name)
     
@@ -537,7 +559,7 @@ def get_next_hex_color():
 def evaluate_arguments(args):
 
     global DEFAULTS
-    DEFAULTS['v'] = args.verbose
+    DEFAULTS['verbose'] = args.verbose
 
     pre_args = ""
     files = ""
@@ -624,38 +646,44 @@ def evaluate_arguments(args):
 def run_jneuroml(pre_args, 
                  target_file, 
                  post_args, 
-                 max_memory   = DEFAULTS['default_java_max_memory'], 
+                 max_memory   = None, 
                  exec_in_dir  = ".",
-                 verbose      = DEFAULTS['v'],
-                 exit_on_fail = True):    
-       
-     
+                 verbose      = None,
+                 exit_on_fail = True):
+
+    if max_memory is None:
+        max_memory = DEFAULTS['java_max_memory']
+
+    if verbose is None:
+        verbose = DEFAULTS['verbose']
+
     script_dir = os.path.dirname(os.path.realpath(__file__))
+
     if 'nogui' in post_args:
         pre_jar = " -Djava.awt.headless=true"
     else:
         pre_jar = ""
 
-    jar = os.path.join(script_dir, "lib", 
+    jar = os.path.join(script_dir, "lib",
                        "jNeuroML-%s-jar-with-dependencies.jar" % JNEUROML_VERSION)
-    
-    output = ''
-    
+
     try:
-        output = execute_command_in_dir("java -Xmx%s %s -jar  '%s' %s %s %s" %
-                                        (max_memory, pre_jar, jar, pre_args, target_file, 
-                                         post_args), exec_in_dir, 
-                                        verbose=verbose)
+        output = execute_command_in_dir(
+                "java -Xmx%s %s -jar  '%s' %s %s %s" %
+                        (max_memory, pre_jar, jar, pre_args,
+                         target_file, post_args),
+                exec_in_dir,
+                verbose=verbose
+                )
+        print_comment(output, verbose)
     except:
         print_comment('*** Execution of jnml has failed! ***', verbose)
-                             
-        print_comment(output, verbose)
-        if exit_on_fail: 
-            sys.exit(-1)
-        else:
-            return False
-        
-    
+
+    if exit_on_fail:
+        sys.exit(-1)
+    else:
+        return False
+
     return True
 
     
@@ -663,18 +691,21 @@ def print_comment_v(text):
     print_comment(text, True)
     
     
-def print_comment(text, print_it=DEFAULTS['v']):
+def print_comment(text, print_it=None):
+    if print_it is None:
+        print_it=DEFAULTS['verbose']
     prefix = "pyNeuroML >>> "
     if not isinstance(text, str): text = text.decode('ascii')
     if print_it:
-        
         print("%s%s"%(prefix, text.replace("\n", "\n"+prefix)))
 
 
-def execute_command_in_dir(command, directory, verbose=DEFAULTS['v']):
-    
+def execute_command_in_dir(command, directory, verbose=None):
     """Execute a command in specific working directory"""
-    
+
+    if verbose is None:
+        verbose=DEFAULTS['verbose']
+
     if os.name == 'nt':
         directory = os.path.normpath(directory)
         
